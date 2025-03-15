@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Take a Quiz</title>
+    <!-- Bootstrap 5 CSS -->
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+    />
+    <style>
+        .quiz-list .card {
+          cursor: pointer;
+          margin-bottom: 10px;
+        }
+        .quiz-question-card {
+          max-width: 600px;
+          margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Top Navigation Bar -->
+<nav id="main-nav" class="navbar navbar-expand-lg navbar-light" style="background-color: #ffe5b4;">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">Quiz App</a>
+        <button
+                class="navbar-toggler"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#navbarSupportedContent"
+                aria-controls="navbarSupportedContent"
+                aria-expanded="false"
+                aria-label="Toggle navigation"
+        >
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <!-- Left-side nav links -->
+            <ul class="navbar-nav mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link disabled" href="#">Add questions</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="create.html">Create a quiz</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" aria-current="page" href="take.html">Take a quiz</a>
+                </li>
+            </ul>
+            <!-- Right-side nav link (About) -->
+            <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link" href="#">About</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Container for listing quizzes -->
+<div class="container my-4" id="quiz-list-container">
+    <h3>Here are the list of all available quizzes:</h3>
+    <p>Click on a quiz to start taking it.</p>
+    <div class="row quiz-list" id="quiz-list">
+        <!-- Quiz cards will be injected here dynamically -->
+    </div>
+</div>
+
+<!-- Quiz Question Display (hidden initially) -->
+<div class="container" id="quiz-container" style="display: none;">
+    <div class="card quiz-question-card">
+        <div class="card-body">
+            <h4 id="question-title"></h4>
+            <img
+                    id="question-image"
+                    src=""
+                    class="img-fluid mb-3"
+                    alt="Question Image"
+            />
+            <p id="question-text"></p>
+            <!-- Multiple-choice options -->
+            <div id="question-options" class="mb-3">
+                <!-- Options will be injected here -->
+            </div>
+            <!-- Navigation buttons -->
+            <div class="d-flex justify-content-between">
+                <button
+                        class="btn btn-secondary"
+                        id="prev-btn"
+                        style="display: none;"
+                >
+                    Previous
+                </button>
+                <button
+                        class="btn btn-primary"
+                        id="next-btn"
+                >
+                    Next
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Score/Results Display (hidden initially) -->
+<div class="container" id="score-container" style="display: none;">
+    <div class="alert alert-info mt-4" role="alert">
+        <p id="completed-quiz"></p>
+        <p id="score-result"></p>
+    </div>
+</div>
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Variables to store quiz data and user progress
+    let currentQuiz = null;
+    let currentQuestionIndex = 0;
+    let userAnswers = [];
+
+    // 1. Fetch the list of quizzes from /quizzes
+    document.addEventListener("DOMContentLoaded", function() {
+      fetch("http://localhost:8080/quizzes")
+        .then(response => response.json())
+        .then(quizList => {
+          renderQuizList(quizList);
+        })
+        .catch(err => {
+          console.error("Failed to fetch quizzes:", err);
+          // Handle errors or show a message to the user if needed
+        });
+    });
+
+    // 2. Render the quiz list as clickable cards
+    function renderQuizList(quizList) {
+      const quizListContainer = document.getElementById("quiz-list");
+      quizListContainer.innerHTML = "";
+
+      quizList.forEach(quiz => {
+        const colDiv = document.createElement("div");
+        colDiv.classList.add("col-md-3");
+
+        const cardDiv = document.createElement("div");
+        cardDiv.classList.add("card");
+        cardDiv.setAttribute("data-quiz-id", quiz.id);
+
+        const cardBodyDiv = document.createElement("div");
+        cardBodyDiv.classList.add("card-body");
+
+        const titleH5 = document.createElement("h5");
+        titleH5.classList.add("card-title");
+        titleH5.textContent = quiz.title;
+
+        // We do not know how many questions the quiz has
+        // until we fetch it individually, but if the server
+        // includes question count in the /quizzes response,
+        // you can display it. Otherwise, just show the title.
+        // For example, if quiz has a "questionCount" property:
+        // let questionCount = quiz.questionCount || "N/A";
+        const p = document.createElement("p");
+        p.classList.add("card-text");
+        p.textContent = `(${quiz.questionIds.length} questions)`;
+
+        // For now, we will only display the quiz title
+        cardBodyDiv.appendChild(titleH5);
+        cardBodyDiv.appendChild(p);
+
+        cardDiv.appendChild(cardBodyDiv);
+        colDiv.appendChild(cardDiv);
+        quizListContainer.appendChild(colDiv);
+
+        // On card click, start the quiz
+        cardDiv.addEventListener("click", () => {
+          startQuiz(quiz.id);
+        });
+      });
+    }
+
+    // 3. Start the quiz by fetching its details from /quizzes/{quizId}
+    function startQuiz(quizId) {
+      console.log(quizId);
+      fetch(`http://localhost:8080/quizzes/${quizId}`)
+        .then(response => response.json())
+        .then(quizData => {
+          console.log(quizData);
+          currentQuiz = quizData;
+          currentQuestionIndex = 0;
+          userAnswers = new Array(currentQuiz.questionIds.length).fill(null);
+
+          // Hide quiz list container, show quiz container
+          document.getElementById("quiz-list-container").style.display = "none";
+          document.getElementById("score-container").style.display = "none";
+          document.getElementById("quiz-container").style.display = "block";
+
+          // Hide the top menu
+          document.getElementById("main-nav").style.display = "none";
+
+          // Show the first question
+          showQuestion();
+        })
+        .catch(err => {
+          console.error("Failed to fetch quiz details:", err);
+          // Handle errors or show a message to the user if needed
+        });
+    }
+
+    // 4. Show the current question
+    function showQuestion() {
+      const questionData = currentQuiz.questions[currentQuestionIndex];
+      console.log(questionData);
+
+      // Update question title and text
+      document.getElementById("question-title").textContent =
+        `Question ${currentQuestionIndex + 1}`;
+      document.getElementById("question-text").textContent = questionData.description;
+
+      // Update question image (if available)
+      const questionImage = document.getElementById("question-image");
+      questionImage.src = `http://localhost:8080/questions/${questionData.id}/image`;
+      questionImage.style.display = "block";
+
+      // Render options
+      const optionsContainer = document.getElementById("question-options");
+      optionsContainer.innerHTML = "";
+      questionData.choices.forEach((option, index) => {
+        console.log(option);
+        const radioId = `option-${currentQuestionIndex}-${index}`;
+        const optionDiv = document.createElement("div");
+        optionDiv.classList.add("form-check", "mb-1");
+
+        optionDiv.innerHTML = `
+          <input
+            class="form-check-input"
+            type="radio"
+            name="question-${currentQuestionIndex}"
+            id="${radioId}"
+            value="${option}"
+            ${userAnswers[currentQuestionIndex] === option ? "checked" : ""}
+          >
+          <label class="form-check-label" for="${radioId}">
+            ${option}
+          </label>
+        `;
+        optionsContainer.appendChild(optionDiv);
+      });
+
+      // Show or hide the Previous button
+      if (currentQuestionIndex === 0) {
+        document.getElementById("prev-btn").style.display = "none";
+      } else {
+        document.getElementById("prev-btn").style.display = "inline-block";
+      }
+    }
+
+    // 5. Attach event listeners to Previous and Next buttons
+    document.getElementById("prev-btn").addEventListener("click", () => {
+      saveAnswer();
+      currentQuestionIndex--;
+      showQuestion();
+    });
+
+    document.getElementById("next-btn").addEventListener("click", () => {
+      saveAnswer();
+      // If on the last question, show the score
+      if (currentQuestionIndex === currentQuiz.questions.length - 1) {
+        showScore();
+      } else {
+        currentQuestionIndex++;
+        showQuestion();
+      }
+    });
+
+    // 6. Save the selected answer
+    function saveAnswer() {
+      const selectedOption = document.querySelector(
+        `input[name="question-${currentQuestionIndex}"]:checked`
+      );
+      if (selectedOption) {
+        userAnswers[currentQuestionIndex] = selectedOption.value;
+      }
+    }
+
+    // 7. Calculate and display the final score
+    function showScore() {
+      let score = 0;
+      currentQuiz.questions.forEach((q, i) => {
+        if (q.answer === userAnswers[i]) {
+          score++;
+        }
+      });
+
+      // Hide question container, show score container
+      document.getElementById("quiz-container").style.display = "none";
+      document.getElementById("score-container").style.display = "block";
+
+      // Show the top menu again
+      document.getElementById("main-nav").style.display = "block";
+
+      // Display final message
+      document.getElementById("completed-quiz").textContent =
+        `You completed the quiz: ${currentQuiz.title}.`;
+      document.getElementById("score-result").textContent =
+        `You scored ${score} out of ${currentQuiz.questions.length}.`;
+    }
+</script>
+</body>
+</html>

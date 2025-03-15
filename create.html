@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Create a Quiz</title>
+    <!-- Bootstrap 5 CSS (CDN) -->
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+    />
+</head>
+<body>
+
+<nav id="main-nav" class="navbar navbar-expand-lg navbar-light" style="background-color: #ffe5b4;">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">Quiz App</a>
+        <button
+                class="navbar-toggler"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#navbarSupportedContent"
+                aria-controls="navbarSupportedContent"
+                aria-expanded="false"
+                aria-label="Toggle navigation"
+        >
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <!-- Left-side nav links -->
+            <ul class="navbar-nav mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link disabled" href="#">Add questions</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="create.html">Create a quiz</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" aria-current="page" href="take.html">Take a quiz</a>
+                </li>
+            </ul>
+
+            <!-- Right-side nav link (About) -->
+            <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link" href="#">About</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- Main container -->
+<div class="container my-4">
+    <div class="row">
+        <!-- Left Column: Questions Bank -->
+        <div class="col-md-8 mb-4">
+            <h3 class="mb-3">Questions Bank</h3>
+            <p>Click on a question to add it to the quiz.</p>
+
+            <!-- Container where question cards will be appended dynamically -->
+            <div id="questionBank" class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Right Column: The new quiz -->
+        <div class="col-md-4">
+            <h3 class="mb-3">The new quiz (0 questions)</h3>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form>
+                        <div class="mb-3">
+                            <label for="quizTitle" class="form-label">Quiz title</label>
+                            <input
+                                    type="text"
+                                    class="form-control"
+                                    id="quizTitle"
+                                    placeholder="Enter quiz title"
+                            />
+                        </div>
+                        <button type="button" class="btn btn-primary mb-3" id="saveChangesBtn">Save your changes</button>
+                        <button type="button" class="btn btn-primary mb-3" id="saveAndNewBtn">Save the quiz and start a new one</button>
+                    </form>
+                    <p class="small text-muted">
+                        If you want to remove a question from the quiz, click on it in the list below.
+                    </p>
+                </div>
+                <!-- Selected Questions Container with uniform padding, full width alignment, and scrollability -->
+                <div
+                        id="selected-questions"
+                        class="p-3 overflow-auto"
+                        style="max-height: 400px;"
+                >
+                    <!-- Dynamically populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap 5 JS (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Global variables to hold questions and quiz state
+    let allQuestions = [];
+    let selectedQuestions = [];
+    // If quizId is null, then it's the first time saving this quiz.
+    let quizId = null;
+
+    // Load questions from Spring Boot backend
+    async function loadQuestions() {
+      try {
+        // Replace with your actual Spring Boot API endpoint for questions
+        const response = await fetch('http://localhost:8080/questions');
+        allQuestions = await response.json();
+        renderQuestionBank(allQuestions);
+      } catch (error) {
+        console.error('Error fetching questions:', error);
+      }
+    }
+
+    // Render the question bank cards
+    function renderQuestionBank(questions) {
+      const questionBankContainer = document.getElementById('questionBank');
+      questionBankContainer.innerHTML = '';
+
+      questions.forEach(question => {
+        // Create a column wrapper
+        const colDiv = document.createElement('div');
+        colDiv.className = 'col';
+
+        // Create a card
+        const card = document.createElement('div');
+        card.className = 'card h-100';
+        card.style.cursor = 'pointer';
+
+        // Example: if question has an image URL property
+        const img = document.createElement('img');
+        img.className = 'card-img-top px-3 py-3';
+        img.alt = 'Question image';
+        img.src = `http://localhost:8080/questions/${question.id}/image`;
+
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body';
+
+        const cardTitle = document.createElement('h5');
+        cardTitle.className = 'card-title';
+        cardTitle.textContent = question.description || 'Question';
+
+        // Create a list of choices
+        const ul = document.createElement('ul');
+        (question.choices || []).forEach(choice => {
+          const li = document.createElement('li');
+          li.textContent = choice;
+          ul.appendChild(li);
+        });
+
+        // Append elements
+        cardBody.appendChild(cardTitle);
+        cardBody.appendChild(ul);
+        card.appendChild(img);
+        card.appendChild(cardBody);
+        colDiv.appendChild(card);
+        questionBankContainer.appendChild(colDiv);
+
+        // Click event to add question to selected list
+        card.addEventListener('click', () => {
+          handleQuestionClick(question);
+        });
+      });
+    }
+
+    // When user clicks a question card in the question bank
+    function handleQuestionClick(question) {
+      // Check if already selected
+      const alreadySelected = selectedQuestions.find(q => q.id === question.id);
+      if (!alreadySelected) {
+        selectedQuestions.push(question);
+        renderSelectedQuestions();
+      }
+    }
+
+    // Render selected questions in the quiz area
+    function renderSelectedQuestions() {
+      const selectedQuestionsContainer = document.getElementById('selected-questions');
+      selectedQuestionsContainer.innerHTML = '';
+
+      selectedQuestions.forEach(question => {
+        // Create a card for each selected question
+        const card = document.createElement('div');
+        card.className = 'card h-50 my-2';
+        card.style.cursor = 'pointer';
+
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body';
+
+        const img = document.createElement('img');
+        img.src = `http://localhost:8080/questions/${question.id}/image`;
+        img.className = 'card-img-top px-3 py-3';
+        img.alt = 'Selected question image';
+
+        const questionText = document.createElement('p');
+        questionText.textContent = question.description || 'Question';
+
+        // Create a list of choices
+        const ul = document.createElement('ul');
+        (question.choices || []).forEach(choice => {
+          const li = document.createElement('li');
+          li.textContent = choice;
+          ul.appendChild(li);
+        });
+
+        cardBody.appendChild(img);
+        cardBody.appendChild(questionText);
+        cardBody.appendChild(ul);
+        card.appendChild(cardBody);
+        selectedQuestionsContainer.appendChild(card);
+
+        // Click event to remove question from quiz
+        card.addEventListener('click', () => {
+          removeQuestion(question.id);
+        });
+      });
+
+      // Update the heading with the count of selected questions
+      const heading = document.querySelector('.col-md-4 h3');
+      heading.textContent = `The new quiz (${selectedQuestions.length} questions)`;
+    }
+
+    // Remove question from selectedQuestions by ID
+    function removeQuestion(questionId) {
+      selectedQuestions = selectedQuestions.filter(q => q.id !== questionId);
+      renderSelectedQuestions();
+    }
+
+    // Save quiz data to the backend. If 'isNew' is true, refresh the page afterwards.
+    async function saveQuiz(isNew) {
+      const title = document.getElementById('quizTitle').value;
+      const questionIds = selectedQuestions.map(q => q.id);
+      // Prepare the payload for the quiz.
+      const payload = {
+        title: title,
+        questionIds: questionIds
+      };
+
+      // Determine endpoint and HTTP method.
+      let url = 'http://localhost:8080/quizzes';
+      let method = 'POST';
+      if (quizId) {
+        // Quiz already exists – update it.
+        payload.id = quizId;
+        method = 'PUT';
+        url = `http://localhost:8080/quizzes/${quizId}`;
+      }
+
+      try {
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          // If this is the first save, assume the backend returns the created quiz with its ID.
+          if (!quizId) {
+            const data = await response.json();
+            quizId = data.id;
+          }
+          if (isNew) {
+            // Refresh the page to start a new quiz.
+            window.location.reload();
+          } else {
+            alert('Quiz saved successfully!');
+          }
+        } else {
+          console.error('Error saving quiz:', response.statusText);
+          alert('Error saving quiz');
+        }
+      } catch (error) {
+        console.error('Error saving quiz:', error);
+        alert('Error saving quiz');
+      }
+    }
+
+    // Attach event listeners for the save buttons when DOM is ready.
+    document.addEventListener('DOMContentLoaded', () => {
+      loadQuestions();
+
+      const saveChangesBtn = document.getElementById('saveChangesBtn');
+      if (saveChangesBtn) {
+        saveChangesBtn.addEventListener('click', () => {
+          // Save changes without refreshing the page.
+            saveQuiz(false);
+        });
+      }
+
+      const saveAndNewBtn = document.getElementById('saveAndNewBtn');
+      if (saveAndNewBtn) {
+        saveAndNewBtn.addEventListener('click', () => {
+          // Save changes without refreshing the page.
+          saveQuiz(true);
+        });
+      }
+    });
+</script>
+
+</body>
+</html>
